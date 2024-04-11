@@ -1,3 +1,4 @@
+// client\src\components\Room.js
 import React, { useEffect, useState } from 'react';
 import { useSocket } from '../context/SocketProvider';
 import { useParams } from 'react-router-dom';
@@ -9,6 +10,14 @@ const VideoChat = () => {
 
   const { roomId } = useParams();
   const socket = useSocket();
+
+  function connectToNewUser(myPeer, peerId, stream) {
+    const call = myPeer.call(peerId, stream);
+    call.on('stream', userVideoStream => {
+      setStreams(prevStreams => [...prevStreams, userVideoStream]);
+      setPeers(prevPeers => [...prevPeers, peerId]);
+    })
+  }
 
   useEffect(() => {
     const myPeer = new Peer();
@@ -22,14 +31,15 @@ const VideoChat = () => {
         call.answer(stream);
         call.on('stream', userVideoStream => {
           setStreams(prevStreams => [...prevStreams, userVideoStream]);
-        });
+        })
       });
 
       socket.on('user-connected', peerId => {
-        connectToNewUser(peerId, stream);
+        connectToNewUser(myPeer, peerId, stream);
         console.log("user-connected", peerId);
       });
     });
+
 
     socket.on('user-disconnected', peerId => {
       console.log("user-disconnected", peerId);
@@ -40,19 +50,6 @@ const VideoChat = () => {
     myPeer.on('open', peerId => {
       socket.emit('join-room', roomId, peerId);
     });
-
-    function connectToNewUser(peerId, stream) {
-      const call = myPeer.call(peerId, stream);
-      call.on('stream', userVideoStream => {
-        setStreams(prevStreams => [...prevStreams, userVideoStream]);
-        setPeers(prevPeers => [...prevPeers, peerId]);
-        console.log("userVideoStream", userVideoStream); // Why is it running two times. It should be called once as only one user is being called & streams from it being received
-      });
-      // call.on('close', () => {
-      // setPeers(prevPeers => prevPeers.filter(peer => peer !== peerId));
-      // setStreams(prevStreams => prevStreams.filter(stream => stream.peerId !== peerId));
-      // });
-    }
 
     return () => {
       myPeer.off('open');
@@ -68,11 +65,13 @@ const VideoChat = () => {
 
   return (
     <div>
-      {streams.map((stream, index) => (
-        stream.active && <video key={index} autoPlay playsInline ref={video => {
-          if (video) video.srcObject = stream;
-        }} />
-      ))}
+      {streams
+        .filter((stream, index) => index === streams.indexOf(stream))
+        .map((stream, index) => (
+          <video key={index} autoPlay playsInline ref={video => {
+            if (video) video.srcObject = stream;
+          }} />
+        ))}
     </div>
   );
 };
