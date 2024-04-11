@@ -6,7 +6,7 @@ import Peer from 'peerjs';
 
 const VideoChat = () => {
   const [streams, setStreams] = useState([]);
-  const [peers, setPeers] = useState([]);
+  const [myStream, setMyStream] = useState(null);
 
   const { roomId } = useParams();
   const socket = useSocket();
@@ -15,18 +15,18 @@ const VideoChat = () => {
     const call = myPeer.call(peerId, stream);
     call.on('stream', userVideoStream => {
       setStreams(prevStreams => [...prevStreams, userVideoStream]);
-      setPeers(prevPeers => [...prevPeers, peerId]);
     })
   }
 
   useEffect(() => {
-    const myPeer = new Peer();
+    let myPeer;
     navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true
     }).then(stream => {
+      setMyStream(stream);
       setStreams(prevStreams => [...prevStreams, stream]);
-
+      myPeer = new Peer()
       myPeer.on('call', call => {
         call.answer(stream);
         call.on('stream', userVideoStream => {
@@ -38,17 +38,15 @@ const VideoChat = () => {
         connectToNewUser(myPeer, peerId, stream);
         console.log("user-connected", peerId);
       });
+
+      myPeer.on('open', peerId => {
+        socket.emit('join-room', roomId, peerId, stream.id);
+      });
     });
 
-
-    socket.on('user-disconnected', peerId => {
-      console.log("user-disconnected", peerId);
-      setPeers(prevPeers => prevPeers.filter(peer => peer !== peerId));
-      setStreams(prevStreams => prevStreams.filter(stream => stream.peerId !== peerId));
-    });
-
-    myPeer.on('open', peerId => {
-      socket.emit('join-room', roomId, peerId);
+    socket.on('user-disconnected', (peerId, streamID) => {
+      console.log("user-disconnected", peerId, streamID);
+      setStreams(prevStreams => prevStreams.filter(stream => stream.id !== streamID));
     });
 
     return () => {

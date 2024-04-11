@@ -6,13 +6,12 @@ const io = require('socket.io')(server, {
 })
 
 io.on('connection', socket => {
-    socket.on('join-room', (roomId, peerId) => {
-        // console.log('joining room', roomId, 'with peerId', peerId)
+    socket.on('join-room', (roomId, peerId, streamID) => {
         socket.join(roomId)
         socket.broadcast.to(roomId).emit('user-connected', peerId)
 
         socket.on('disconnect', () => {
-            socket.broadcast.to(roomId).emit('user-disconnected', peerId)
+            socket.broadcast.to(roomId).emit('user-disconnected', peerId, streamID)
         })
     })
 })
